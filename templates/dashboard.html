@@ -1,0 +1,193 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — OAK Bidding Tracker{% endblock %}
+{% block content %}
+
+<!-- Stats -->
+<div class="stats">
+    <div class="stat-card">
+        <div class="stat-value">{{ active_count }}</div>
+        <div class="stat-label">Active Bids</div>
+    </div>
+    <div class="stat-card urgent">
+        <div class="stat-value" style="color:var(--red);">{{ urgent_count }}</div>
+        <div class="stat-label">Due &lt; 7 Days</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value" style="color:var(--red);">{{ expired_count }}</div>
+        <div class="stat-label">Expired</div>
+    </div>
+    <div class="stat-card pipeline">
+        <div class="stat-value" style="color:var(--green); font-size:1.5rem;">${{ "{:,.0f}".format(total_pipeline) }}</div>
+        <div class="stat-label">Pipeline Value</div>
+    </div>
+</div>
+
+<!-- Actions bar -->
+<div class="flex items-center justify-between mb-2">
+    <h2 style="font-size:1.1rem;">All Projects</h2>
+    <div class="flex gap-1">
+        <button onclick="runScan()" class="btn btn-outline" id="scanBtn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 11-6.219-8.56"/><polyline points="21 3 21 12 12 12"/></svg>
+            Scan Folders
+        </button>
+        <button onclick="showNewProject()" class="btn btn-primary">+ New Project</button>
+    </div>
+</div>
+
+<!-- New project form (hidden) -->
+<div id="newProjectForm" style="display:none;" class="card mb-2">
+    <div class="card-body">
+        <form method="POST" action="/api/project/new" class="flex items-center gap-1">
+            <input type="text" name="name" placeholder="Project name..." style="flex:1;" required>
+            <button type="submit" class="btn btn-success">Add</button>
+            <button type="button" onclick="document.getElementById('newProjectForm').style.display='none'" class="btn btn-outline">Cancel</button>
+        </form>
+    </div>
+</div>
+
+<!-- Projects table -->
+<div class="card">
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Project</th>
+                    <th>Deadline</th>
+                    <th class="hide-mobile">Days</th>
+                    <th>Status</th>
+                    <th class="hide-mobile">Win%</th>
+                    <th>Docs</th>
+                    <th class="hide-mobile">Bid Price</th>
+                    <th>Alert</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in projects %}
+                <tr class="link-row" onclick="window.location='/project/{{ p.id }}'">
+                    <td>
+                        <strong style="font-size:0.85rem;">{{ p.name[:35] }}{% if p.name|length > 35 %}…{% endif %}</strong>
+                        {% if p.agency and p.agency != 'TBD' %}
+                        <br><span class="text-muted text-sm">{{ p.agency }}</span>
+                        {% endif %}
+                    </td>
+                    <td style="white-space:nowrap;">
+                        {% if p.deadline %}
+                        {{ p.deadline }}
+                        {% else %}
+                        <span class="text-muted">TBD</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-center hide-mobile">
+                        {% if p.days_left is not none %}
+                            {% if p.days_left < 0 %}
+                            <span style="color:var(--red); font-weight:600;">{{ p.days_left }}d</span>
+                            {% elif p.days_left <= 7 %}
+                            <span style="color:var(--red); font-weight:600;">{{ p.days_left }}d</span>
+                            {% else %}
+                            {{ p.days_left }}d
+                            {% endif %}
+                        {% else %}
+                        —
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% set sc = p.status.lower().replace(' ','') %}
+                        <span class="badge
+                            {% if p.status == 'YES' %}badge-yes
+                            {% elif p.status == 'NOPE' or p.status == 'NOT BIDDING' %}badge-nope
+                            {% elif p.status == 'MAYBE' or p.status == 'NEED MORE INFO' %}badge-maybe
+                            {% elif p.status == 'PREPARING' %}badge-preparing
+                            {% elif p.status == 'SUBMITTED' %}badge-submitted
+                            {% endif %}">{{ p.status }}</span>
+                    </td>
+                    <td class="text-center hide-mobile">
+                        <span class="mono">{{ p.win_score|int }}%</span>
+                    </td>
+                    <td>
+                        <div class="flex items-center gap-1">
+                            <div class="progress" style="width:50px;">
+                                <div class="progress-bar {% if p.doc_readiness < 30 %}low{% elif p.doc_readiness < 70 %}med{% else %}high{% endif %}"
+                                     style="width:{{ p.doc_readiness }}%"></div>
+                            </div>
+                            <span class="text-sm mono">{{ p.doc_readiness }}%</span>
+                        </div>
+                    </td>
+                    <td class="hide-mobile text-right mono">
+                        {% if p.bid_price > 0 %}
+                        ${{ "{:,.0f}".format(p.bid_price) }}
+                        {% else %}
+                        —
+                        {% endif %}
+                    </td>
+                    <td class="text-center">
+                        <span class="badge badge-{{ p.urgency }}">{{ p.urgency }}</span>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Status breakdown -->
+<div class="mt-2 grid-2">
+    <div class="card">
+        <div class="card-header">Decision Summary</div>
+        <div class="card-body">
+            {% for status, count in status_counts.items()|sort(attribute='1', reverse=true) %}
+            <div class="flex items-center justify-between" style="padding:0.35rem 0; border-bottom:1px solid var(--light-gray);">
+                <span class="text-sm">{{ status }}</span>
+                <div class="flex items-center gap-1">
+                    <div class="progress" style="width:80px;">
+                        <div class="progress-bar med" style="width:{{ (count / projects|length * 100)|int }}%"></div>
+                    </div>
+                    <span class="mono text-sm">{{ count }}</span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    <div class="card">
+        <div class="card-header">Quick Info</div>
+        <div class="card-body text-sm">
+            <p><strong>Last updated:</strong> {{ now.strftime('%b %d, %Y at %I:%M %p') }}</p>
+            <p class="mt-1"><strong>Total projects:</strong> {{ projects|length }}</p>
+            <p class="mt-1"><strong>Tip:</strong> Click any project row to see full details, edit costs, and manage documents.</p>
+            <p class="mt-1"><strong>Scan Folders</strong> checks your Bidding directory for new documents and updates statuses automatically.</p>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function showNewProject() {
+    document.getElementById('newProjectForm').style.display = 'block';
+    document.querySelector('#newProjectForm input').focus();
+}
+
+function runScan() {
+    const btn = document.getElementById('scanBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spin"><path d="M21 12a9 9 0 11-6.219-8.56"/></svg> Scanning...';
+
+    fetch('/api/scan', {method:'POST'})
+        .then(r => r.json())
+        .then(data => {
+            if (data.changes && data.changes.length > 0) {
+                alert('Found ' + data.changes.length + ' update(s):\\n\\n' + data.changes.join('\\n'));
+                location.reload();
+            } else {
+                btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg> No changes';
+                setTimeout(() => location.reload(), 1500);
+            }
+        })
+        .catch(() => { btn.innerHTML = 'Error'; btn.disabled = false; });
+}
+</script>
+<style>
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+.spin { animation: spin 1s linear infinite; }
+</style>
+{% endblock %}

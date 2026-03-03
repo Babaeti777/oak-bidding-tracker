@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Login — OAK Bidding Tracker{% endblock %}
+{% block content %}
+<div style="max-width:360px; margin: 4rem auto; text-align:center;">
+    <div class="card">
+        <div class="card-body" style="padding:2rem;">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="1.5" style="margin-bottom:1rem;"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+            <h2 style="margin-bottom:0.25rem; color:var(--navy);">OAK Builders</h2>
+            <p class="text-muted text-sm mb-2">Bidding Tracker</p>
+            <form method="POST" style="text-align:left;">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" placeholder="Enter your password" autofocus required>
+                <button type="submit" class="btn btn-primary mt-2" style="width:100%; justify-content:center;">Sign In</button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

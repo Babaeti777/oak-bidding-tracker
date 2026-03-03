@@ -1,0 +1,258 @@
+{% extends "base.html" %}
+{% block title %}{{ project.name }} — OAK Bidding Tracker{% endblock %}
+{% block content %}
+
+<!-- Header -->
+<div class="flex items-center justify-between mb-2" style="flex-wrap:wrap; gap:0.5rem;">
+    <div>
+        <a href="/" class="text-sm text-muted" style="text-decoration:none;">← Dashboard</a>
+        <h1 style="font-size:1.3rem; margin-top:0.25rem;">{{ project.name }}</h1>
+        {% if project.agency and project.agency != 'TBD' %}
+        <p class="text-muted text-sm">{{ project.agency }}</p>
+        {% endif %}
+    </div>
+    <div class="flex gap-1">
+        <span class="badge badge-{{ project.urgency }}" style="font-size:0.85rem; padding:0.35rem 0.75rem;">{{ project.urgency }}</span>
+    </div>
+</div>
+
+<!-- Key Data -->
+<div class="grid-3 mb-2">
+    <div class="stat-card">
+        <div class="stat-value" style="font-size:1.5rem;
+            {% if project.days_left is not none and project.days_left < 0 %}color:var(--red);
+            {% elif project.days_left is not none and project.days_left <= 7 %}color:var(--red);
+            {% elif project.days_left is not none %}color:var(--blue);{% endif %}">
+            {% if project.days_left is not none %}{{ project.days_left }}{% else %}—{% endif %}
+        </div>
+        <div class="stat-label">Days Left</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value" style="font-size:1.5rem; color:var(--green);">{{ project.doc_readiness }}%</div>
+        <div class="stat-label">Docs Ready</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value" style="font-size:1.3rem; color:var(--green);">
+            {% if project.bid_price > 0 %}${{ "{:,.0f}".format(project.bid_price) }}{% else %}—{% endif %}
+        </div>
+        <div class="stat-label">Bid Price</div>
+    </div>
+</div>
+
+<!-- Edit form -->
+<div class="grid-2 mb-2">
+    <div class="card">
+        <div class="card-header">Project Details</div>
+        <div class="card-body">
+            <form id="projectForm">
+                <div class="grid-2" style="gap:0.75rem;">
+                    <div>
+                        <label>Project Name</label>
+                        <input type="text" name="name" value="{{ project.name }}">
+                    </div>
+                    <div>
+                        <label>Deadline</label>
+                        <input type="date" name="deadline" value="{{ project.deadline or '' }}">
+                    </div>
+                    <div>
+                        <label>Status</label>
+                        <select name="status">
+                            {% for opt in status_options %}
+                            <option value="{{ opt }}" {% if opt == project.status %}selected{% endif %}>{{ opt }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label>Agency / Owner</label>
+                        <input type="text" name="agency" value="{{ project.agency or '' }}">
+                    </div>
+                    <div>
+                        <label>Win Score (%)</label>
+                        <input type="number" name="win_score" min="0" max="100" value="{{ project.win_score|int }}">
+                    </div>
+                    <div>
+                        <label>Readiness (%)</label>
+                        <input type="number" name="readiness" min="0" max="100" value="{{ project.readiness|int }}">
+                    </div>
+                </div>
+                <div class="mt-1">
+                    <label>Scope / Notes</label>
+                    <textarea name="notes" rows="3" style="resize:vertical;">{{ project.notes or '' }}</textarea>
+                </div>
+                <button type="button" onclick="saveProject()" class="btn btn-primary mt-1">Save Changes</button>
+                <span id="saveStatus" class="text-sm text-muted" style="margin-left:0.5rem;"></span>
+            </form>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">Cost Estimate</div>
+        <div class="card-body">
+            <form id="costForm">
+                {% for field, label in [('labor','Labor'), ('materials','Materials'), ('equipment','Equipment'), ('subcontractors','Subcontractors'), ('overhead','Overhead / Indirect')] %}
+                <div class="flex items-center justify-between" style="padding:0.4rem 0; border-bottom:1px solid var(--light-gray);">
+                    <span class="text-sm">{{ label }}</span>
+                    <input type="number" name="{{ field }}" value="{{ project[field]|int }}" style="width:120px; text-align:right;" min="0" step="100"
+                           onchange="updateTotals()">
+                </div>
+                {% endfor %}
+                <div class="flex items-center justify-between" style="padding:0.6rem 0; border-bottom:2px solid var(--navy);">
+                    <strong>Total Estimate</strong>
+                    <strong id="totalCost" class="mono">$0</strong>
+                </div>
+                <div class="flex items-center justify-between" style="padding:0.4rem 0;">
+                    <span class="text-sm">Profit %</span>
+                    <input type="number" name="profit_pct" value="{{ project.profit_pct|int }}" style="width:80px; text-align:right;" min="0" max="50"
+                           onchange="updateTotals()">
+                </div>
+                <div class="flex items-center justify-between" style="padding:0.6rem 0;">
+                    <strong style="color:var(--green);">Bid Price</strong>
+                    <strong id="bidPrice" class="mono" style="color:var(--green); font-size:1.1rem;">$0</strong>
+                </div>
+                <button type="button" onclick="saveCosts()" class="btn btn-success mt-1" style="width:100%; justify-content:center;">Save Costs</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Documents -->
+<div class="card mb-2">
+    <div class="card-header">
+        Document Checklist
+        <div class="progress" style="width:100px;">
+            <div class="progress-bar {% if project.doc_readiness < 30 %}low{% elif project.doc_readiness < 70 %}med{% else %}high{% endif %}"
+                 style="width:{{ project.doc_readiness }}%"></div>
+        </div>
+    </div>
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th style="width:30px;">#</th><th>Document</th><th style="width:130px;">Status</th><th class="hide-mobile">Source</th></tr></thead>
+            <tbody>
+                {% for doc in docs %}
+                <tr>
+                    <td class="text-center text-muted">{{ loop.index }}</td>
+                    <td>{{ doc.doc_name }}</td>
+                    <td>
+                        <select onchange="updateDoc({{ doc.id }}, this.value)" style="
+                            {% if doc.status == 'Done' %}background:#EAFAF1; color:#1E8449; font-weight:600;
+                            {% elif doc.status == 'In Progress' %}background:#FEF5E7; color:#9C6500;
+                            {% elif doc.status == 'Pending' %}background:#FDEDEC; color:#9C0006;
+                            {% else %}background:#ECF0F1; color:#7F8C8D;{% endif %}
+                            border:none; padding:0.35rem; border-radius:4px; font-size:0.8rem;">
+                            {% for opt in doc_status_options %}
+                            <option value="{{ opt }}" {% if opt == doc.status %}selected{% endif %}>{{ opt }}</option>
+                            {% endfor %}
+                        </select>
+                    </td>
+                    <td class="text-sm text-muted hide-mobile">{{ doc.source_file or '' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Milestones -->
+<div class="card mb-2">
+    <div class="card-header">Milestones</div>
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th style="width:30px;">#</th><th>Milestone</th><th style="width:140px;">Date</th><th style="width:130px;">Status</th></tr></thead>
+            <tbody>
+                {% for m in milestones %}
+                <tr>
+                    <td class="text-center text-muted">{{ loop.index }}</td>
+                    <td>{{ m.milestone_name }}</td>
+                    <td>
+                        <input type="date" value="{{ m.milestone_date or '' }}"
+                               onchange="updateMilestone({{ m.id }}, 'milestone_date', this.value)"
+                               style="border:none; background:transparent; font-size:0.85rem;">
+                    </td>
+                    <td>
+                        <select onchange="updateMilestone({{ m.id }}, 'status', this.value)" style="
+                            {% if m.status == 'Complete' %}background:#EAFAF1; color:#1E8449;
+                            {% elif m.status == 'Missed' %}background:#FDEDEC; color:#9C0006;
+                            {% else %}background:#EBF5FB; color:var(--blue);{% endif %}
+                            border:none; padding:0.35rem; border-radius:4px; font-size:0.8rem;">
+                            {% for opt in milestone_status_options %}
+                            <option value="{{ opt }}" {% if opt == m.status %}selected{% endif %}>{{ opt }}</option>
+                            {% endfor %}
+                        </select>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Activity Log -->
+{% if logs %}
+<div class="card">
+    <div class="card-header">Recent Activity</div>
+    <div class="card-body">
+        {% for log in logs %}
+        <div style="padding:0.3rem 0; border-bottom:1px solid var(--light-gray);" class="text-sm">
+            <span class="text-muted">{{ log.created_at[:16] }}</span> —
+            <strong>{{ log.action }}</strong>
+            {% if log.detail %}<span class="text-muted">{{ log.detail }}</span>{% endif %}
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const PID = {{ project.id }};
+
+function updateTotals() {
+    const f = document.getElementById('costForm');
+    const fields = ['labor','materials','equipment','subcontractors','overhead'];
+    let total = 0;
+    fields.forEach(name => { total += parseFloat(f[name].value) || 0; });
+    const profitPct = parseFloat(f.profit_pct.value) || 0;
+    const bidPrice = total * (1 + profitPct / 100);
+    document.getElementById('totalCost').textContent = '$' + total.toLocaleString('en-US', {maximumFractionDigits:0});
+    document.getElementById('bidPrice').textContent = '$' + bidPrice.toLocaleString('en-US', {maximumFractionDigits:0});
+}
+updateTotals();
+
+function saveProject() {
+    const f = document.getElementById('projectForm');
+    const data = {};
+    new FormData(f).forEach((v, k) => data[k] = v);
+    fetch('/api/project/' + PID, {
+        method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(data)
+    }).then(r => r.json()).then(() => {
+        document.getElementById('saveStatus').textContent = 'Saved ✓';
+        setTimeout(() => document.getElementById('saveStatus').textContent = '', 2000);
+    });
+}
+
+function saveCosts() {
+    const f = document.getElementById('costForm');
+    const data = {};
+    new FormData(f).forEach((v, k) => data[k] = v);
+    fetch('/api/project/' + PID, {
+        method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(data)
+    }).then(r => r.json()).then(() => location.reload());
+}
+
+function updateDoc(docId, status) {
+    fetch('/api/doc/' + docId, {
+        method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({status})
+    });
+}
+
+function updateMilestone(mileId, field, value) {
+    const data = {};
+    data[field] = value;
+    fetch('/api/milestone/' + mileId, {
+        method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(data)
+    });
+}
+</script>
+{% endblock %}

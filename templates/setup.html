@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Setup — OAK Bidding Tracker{% endblock %}
+{% block content %}
+<div style="max-width:400px; margin: 4rem auto; text-align:center;">
+    <div class="card">
+        <div class="card-body" style="padding:2rem;">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="1.5" style="margin-bottom:1rem;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            <h2 style="margin-bottom:0.5rem; color:var(--navy);">Welcome to OAK Bidding Tracker</h2>
+            <p class="text-muted text-sm mb-2">Set a password to secure your tracker. You'll use this to log in from any device on your network.</p>
+            <form method="POST" style="text-align:left;">
+                <label for="password">Choose a Password</label>
+                <input type="password" id="password" name="password" placeholder="At least 4 characters" minlength="4" autofocus required>
+                <p class="text-muted text-sm mt-1">This protects your bid data when accessing from your phone or other devices.</p>
+                <button type="submit" class="btn btn-success mt-2" style="width:100%; justify-content:center;">Set Up Tracker</button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

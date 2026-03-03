@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}OAK Builders — Bidding Tracker{% endblock %}</title>
+    <style>
+        :root {
+            --navy: #0F2439;
+            --blue: #1B4F72;
+            --med-blue: #2B5C8A;
+            --light-blue: #D6EAF8;
+            --accent: #F39C12;
+            --green: #27AE60;
+            --red: #E74C3C;
+            --yellow: #F1C40F;
+            --gray: #7F8C8D;
+            --light-gray: #ECF0F1;
+            --white: #FFFFFF;
+            --bg: #F5F7FA;
+            --text: #2C3E50;
+            --card-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            --radius: 10px;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; }
+
+        /* Nav */
+        .nav { background: var(--navy); padding: 0.75rem 1.5rem; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; }
+        .nav-brand { color: var(--white); font-weight: 700; font-size: 1.1rem; text-decoration: none; display: flex; align-items: center; gap: 0.5rem; }
+        .nav-brand span { color: var(--accent); }
+        .nav-links { display: flex; gap: 1rem; align-items: center; }
+        .nav-links a { color: rgba(255,255,255,0.7); text-decoration: none; font-size: 0.875rem; transition: color 0.2s; }
+        .nav-links a:hover { color: var(--white); }
+        .nav-links .btn-sm { background: var(--med-blue); color: var(--white); padding: 0.35rem 0.75rem; border-radius: 6px; font-size: 0.8rem; }
+
+        /* Container */
+        .container { max-width: 1200px; margin: 0 auto; padding: 1.25rem; }
+
+        /* Cards */
+        .card { background: var(--white); border-radius: var(--radius); box-shadow: var(--card-shadow); overflow: hidden; }
+        .card-header { padding: 0.875rem 1.25rem; font-weight: 600; border-bottom: 1px solid var(--light-gray); display: flex; align-items: center; justify-content: space-between; }
+        .card-body { padding: 1.25rem; }
+
+        /* Stats row */
+        .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.75rem; margin-bottom: 1.25rem; }
+        .stat-card { background: var(--white); border-radius: var(--radius); box-shadow: var(--card-shadow); padding: 1rem 1.25rem; text-align: center; }
+        .stat-value { font-size: 2rem; font-weight: 700; line-height: 1.1; }
+        .stat-label { font-size: 0.75rem; color: var(--gray); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 0.25rem; }
+        .stat-card.urgent { border-left: 4px solid var(--red); }
+        .stat-card.pipeline { border-left: 4px solid var(--green); }
+
+        /* Table */
+        .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+        th { background: var(--navy); color: var(--white); text-align: left; padding: 0.65rem 0.75rem; font-weight: 600; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.3px; white-space: nowrap; }
+        td { padding: 0.65rem 0.75rem; border-bottom: 1px solid var(--light-gray); vertical-align: middle; }
+        tr:hover { background: #f8f9fb; }
+        .link-row { cursor: pointer; }
+
+        /* Badges */
+        .badge { display: inline-block; padding: 0.2rem 0.55rem; border-radius: 20px; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; }
+        .badge-urgent { background: #FDEDEC; color: var(--red); }
+        .badge-soon { background: #FEF5E7; color: #E67E22; }
+        .badge-expired { background: #FADBD8; color: #922B21; }
+        .badge-ok { background: #EAFAF1; color: var(--green); }
+        .badge-inactive { background: var(--light-gray); color: var(--gray); }
+        .badge-unknown { background: var(--light-gray); color: var(--gray); }
+
+        .badge-yes { background: #EAFAF1; color: var(--green); }
+        .badge-nope { background: #FADBD8; color: var(--red); }
+        .badge-maybe { background: #FEF5E7; color: #E67E22; }
+        .badge-preparing { background: var(--light-blue); color: var(--blue); }
+        .badge-submitted { background: #D5F5E3; color: #1E8449; }
+
+        /* Progress bar */
+        .progress { background: var(--light-gray); border-radius: 20px; height: 8px; overflow: hidden; min-width: 60px; }
+        .progress-bar { height: 100%; border-radius: 20px; transition: width 0.3s; }
+        .progress-bar.low { background: var(--red); }
+        .progress-bar.med { background: var(--yellow); }
+        .progress-bar.high { background: var(--green); }
+
+        /* Buttons */
+        .btn { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.5rem 1rem; border-radius: 8px; font-size: 0.875rem; font-weight: 500; text-decoration: none; border: none; cursor: pointer; transition: all 0.15s; }
+        .btn-primary { background: var(--blue); color: var(--white); }
+        .btn-primary:hover { background: var(--navy); }
+        .btn-success { background: var(--green); color: var(--white); }
+        .btn-outline { background: transparent; border: 1px solid var(--blue); color: var(--blue); }
+        .btn-outline:hover { background: var(--light-blue); }
+        .btn-icon { background: none; border: none; padding: 0.35rem; cursor: pointer; border-radius: 6px; color: var(--gray); }
+        .btn-icon:hover { background: var(--light-gray); color: var(--text); }
+
+        /* Forms */
+        select, input[type="text"], input[type="date"], input[type="number"], input[type="password"], textarea {
+            padding: 0.45rem 0.65rem; border: 1px solid #ddd; border-radius: 6px; font-size: 0.875rem; font-family: inherit; width: 100%; transition: border-color 0.15s;
+        }
+        select:focus, input:focus, textarea:focus { outline: none; border-color: var(--blue); box-shadow: 0 0 0 3px rgba(27,79,114,0.1); }
+        label { font-size: 0.8rem; font-weight: 600; color: var(--gray); text-transform: uppercase; letter-spacing: 0.3px; display: block; margin-bottom: 0.3rem; }
+
+        /* Flash messages */
+        .flash { padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 1rem; font-size: 0.875rem; }
+        .flash-error { background: #FDEDEC; color: var(--red); border: 1px solid #F5B7B1; }
+        .flash-success { background: #EAFAF1; color: #1E8449; border: 1px solid #ABEBC6; }
+
+        /* Grid */
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+        .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; }
+
+        /* Mobile */
+        @media (max-width: 768px) {
+            .container { padding: 0.75rem; }
+            .stats { grid-template-columns: repeat(2, 1fr); gap: 0.5rem; }
+            .stat-value { font-size: 1.5rem; }
+            .grid-2, .grid-3 { grid-template-columns: 1fr; }
+            th, td { padding: 0.5rem; font-size: 0.8rem; }
+            .hide-mobile { display: none; }
+            .nav { padding: 0.6rem 1rem; }
+        }
+
+        /* Utility */
+        .text-right { text-align: right; }
+        .text-center { text-align: center; }
+        .text-muted { color: var(--gray); }
+        .text-sm { font-size: 0.8rem; }
+        .mt-1 { margin-top: 0.5rem; }
+        .mt-2 { margin-top: 1rem; }
+        .mb-1 { margin-bottom: 0.5rem; }
+        .mb-2 { margin-bottom: 1rem; }
+        .gap-1 { gap: 0.5rem; }
+        .flex { display: flex; }
+        .items-center { align-items: center; }
+        .justify-between { justify-content: space-between; }
+        .mono { font-family: 'SF Mono', 'Fira Code', monospace; }
+    </style>
+</head>
+<body>
+    <nav class="nav">
+        <a href="/" class="nav-brand">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+            <span>OAK</span> Bidding Tracker
+        </a>
+        <div class="nav-links">
+            {% if session.get('logged_in') %}
+            <a href="/">Dashboard</a>
+            <a href="/logout" class="btn-sm">Logout</a>
+            {% endif %}
+        </div>
+    </nav>
+
+    <div class="container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% for category, message in messages %}
+        <div class="flash flash-{{ category }}">{{ message }}</div>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+    </div>
+
+    {% block scripts %}{% endblock %}
+</body>
+</html>
