@@ -5,7 +5,18 @@ from datetime import datetime, date
 
 # Support persistent disk on cloud (Render mounts to /data)
 _default_db = os.path.join(os.path.dirname(__file__), "bidding_tracker.db")
-DB_PATH = os.environ.get("DATABASE_PATH", _default_db)
+_env_db = os.environ.get("DATABASE_PATH", "")
+
+if _env_db:
+    # Try to use the configured path; fall back to local if directory can't be created
+    try:
+        os.makedirs(os.path.dirname(_env_db) or ".", exist_ok=True)
+        DB_PATH = _env_db
+    except OSError:
+        print(f"WARNING: Cannot create directory for {_env_db}, falling back to local DB")
+        DB_PATH = _default_db
+else:
+    DB_PATH = _default_db
 
 DOCUMENTS = [
     "Bid Bond / Bid Security", "Performance Bond", "Payment Bond",
