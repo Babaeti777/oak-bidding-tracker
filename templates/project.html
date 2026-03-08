@@ -126,7 +126,7 @@
     </div>
     <div class="table-wrap">
         <table>
-            <thead><tr><th style="width:30px;">#</th><th>Document</th><th style="width:130px;">Status</th><th class="hide-mobile">Source</th></tr></thead>
+            <thead><tr><th style="width:30px;">#</th><th>Document</th><th style="width:130px;">Status</th><th>Source / Note</th></tr></thead>
             <tbody>
                 {% for doc in docs %}
                 <tr>
@@ -144,7 +144,12 @@
                             {% endfor %}
                         </select>
                     </td>
-                    <td class="text-sm text-muted hide-mobile">{{ doc.source_file or '' }}</td>
+                    <td>
+                        <input type="text" value="{{ doc.source_file or '' }}"
+                               placeholder="e.g. OneDrive, emailed, N/A"
+                               onchange="updateDocSource({{ doc.id }}, this.value)"
+                               style="border:none; background:transparent; font-size:0.8rem; width:100%; padding:0.3rem; color:var(--gray);">
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -244,6 +249,19 @@ function saveCosts() {
 function updateDoc(docId, status) {
     fetch('/api/doc/' + docId, {
         method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({status})
+    }).then(() => {
+        // Update the select styling inline
+        const sel = event.target;
+        if (status === 'Done') { sel.style.background = '#EAFAF1'; sel.style.color = '#1E8449'; sel.style.fontWeight = '600'; }
+        else if (status === 'In Progress') { sel.style.background = '#FEF5E7'; sel.style.color = '#9C6500'; sel.style.fontWeight = ''; }
+        else if (status === 'Pending') { sel.style.background = '#FDEDEC'; sel.style.color = '#9C0006'; sel.style.fontWeight = ''; }
+        else { sel.style.background = '#ECF0F1'; sel.style.color = '#7F8C8D'; sel.style.fontWeight = ''; }
+    });
+}
+
+function updateDocSource(docId, source) {
+    fetch('/api/doc/' + docId, {
+        method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({source_file: source})
     });
 }
 

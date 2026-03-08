@@ -270,6 +270,15 @@ def update_doc(doc_id):
             conn.execute("INSERT INTO activity_log (project_id, action, detail) VALUES (?, ?, ?)",
                          (doc['project_id'], "doc_update", f"{doc['doc_name']}: {status}"))
         conn.commit()
+    # Allow updating source/notes from the web UI
+    source = data.get("source_file")
+    if source is not None:
+        conn.execute("UPDATE documents SET source_file = ? WHERE id = ?", (source, doc_id))
+        conn.commit()
+    notes = data.get("notes")
+    if notes is not None:
+        conn.execute("UPDATE documents SET notes = ? WHERE id = ?", (notes, doc_id))
+        conn.commit()
     conn.close()
     return jsonify({"ok": True})
 
