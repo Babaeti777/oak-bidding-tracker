@@ -3,7 +3,9 @@ import sqlite3
 import os
 from datetime import datetime, date
 
-DB_PATH = os.path.join(os.path.dirname(__file__), "bidding_tracker.db")
+# Support persistent disk on cloud (Render mounts to /data)
+_default_db = os.path.join(os.path.dirname(__file__), "bidding_tracker.db")
+DB_PATH = os.environ.get("DATABASE_PATH", _default_db)
 
 DOCUMENTS = [
     "Bid Bond / Bid Security", "Performance Bond", "Payment Bond",
@@ -17,7 +19,7 @@ MILESTONES = [
     "Award Announcement", "Contract Signing", "Notice to Proceed", "Project Completion",
 ]
 
-STATUS_OPTIONS = ["YES", "NOPE", "NEED MORE INFO", "MAYBE", "PREPARING", "SUBMITTED", "NOT BIDDING"]
+STATUS_OPTIONS = ["YES", "NOPE", "NEED MORE INFO", "MAYBE", "PREPARING", "SUBMITTED", "NOT BIDDING", "WIN", "LOST", "FOLLOWING UP"]
 DOC_STATUS_OPTIONS = ["Pending", "In Progress", "Done", "N/A"]
 MILESTONE_STATUS_OPTIONS = ["Upcoming", "Complete", "Missed", "N/A"]
 
@@ -148,8 +150,10 @@ def get_project_summary(project_row):
         p['days_left'] = None
 
     # Urgency
-    if p.get('status') in ('NOT BIDDING', 'NOPE'):
+    if p.get('status') in ('NOT BIDDING', 'NOPE', 'LOST'):
         p['urgency'] = 'inactive'
+    elif p.get('status') == 'WIN':
+        p['urgency'] = 'ok'
     elif p['days_left'] is None:
         p['urgency'] = 'unknown'
     elif p['days_left'] < 0:

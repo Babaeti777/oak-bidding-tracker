@@ -21,3 +21,11 @@ venv/
 # OS
 .DS_Store
 Thumbs.db
+.fuse_hidden*
+
+# Large Excel files (tracked separately via OneDrive)
+*.xlsx
+
+# Claude workspace
+.claude/
+CLAUDE/

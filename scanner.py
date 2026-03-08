@@ -123,7 +123,13 @@ def scan_all_projects(bidding_dir):
     conn = get_db()
     changes = []
 
-    projects = conn.execute("SELECT id, folder_name FROM projects").fetchall()
+    # Skip archived/inactive projects — they don't need constant scanning
+    ARCHIVED_STATUSES = ('LOST', 'NOT BIDDING', 'FOLLOWING UP', 'NOPE')
+    placeholders = ','.join('?' for _ in ARCHIVED_STATUSES)
+    projects = conn.execute(
+        f"SELECT id, folder_name FROM projects WHERE status NOT IN ({placeholders})",
+        ARCHIVED_STATUSES
+    ).fetchall()
 
     exclude = {"COMPANY_DOCUMENTS", "Claude", "Bid submitted", "claude", ".skills", ".claude",
                "0000-Bid submitted", "1111-Claude", "__pycache__", "node_modules", ".git", "webapp"}

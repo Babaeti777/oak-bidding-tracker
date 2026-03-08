@@ -14,11 +14,17 @@ from models import (get_db, init_db, get_project_summary, get_doc_readiness,
                     STATUS_OPTIONS, DOC_STATUS_OPTIONS, MILESTONE_STATUS_OPTIONS,
                     DOCUMENTS, MILESTONES)
 
+# Statuses that go to the separate "archived" table and don't get auto-scanned
+ARCHIVED_STATUSES = ('LOST', 'NOT BIDDING', 'FOLLOWING UP', 'NOPE')
+
+# ── Cloud vs Local mode ──
+CLOUD_MODE = os.environ.get("CLOUD_MODE", "0") == "1"
+
 app = Flask(__name__)
 app.permanent_session_lifetime = timedelta(days=7)
 
 # ── Config ──
-BIDDING_DIR = Path(__file__).parent.parent.resolve()
+BIDDING_DIR = Path(os.environ.get("BIDDING_DIR", str(Path(__file__).parent.parent.resolve())))
 CONFIG_FILE = Path(__file__).parent / "config.json"
 
 def load_config():
@@ -40,6 +46,13 @@ def get_or_create_secret_key():
     return cfg["secret_key"]
 
 app.secret_key = os.environ.get("SECRET_KEY") or get_or_create_secret_key()
+
+# ── HTTPS / Proxy support for cloud hosting (Render, Railway, etc.) ──
+if CLOUD_MODE:
+    from werkzeug.middleware.proxy_fix import ProxyFix
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+    app.config['SESSION_COOKIE_SECURE'] = True
+    app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 
 def hash_password(pw):
     return hashlib.sha256(pw.encode()).hexdigest()
@@ -133,22 +146,51 @@ def dashboard():
         ep['doc_readiness'] = get_doc_readiness(p['id'])
         enriched.append(ep)
 
-    # Stats
-    active = [p for p in enriched if p['status'] not in ('NOT BIDDING', 'NOPE')]
-    urgent = [p for p in enriched if p['urgency'] == 'urgent']
-    expired = [p for p in enriched if p['urgency'] == 'expired']
-    total_pipeline = sum(p['bid_price'] for p in active if p['bid_price'] > 0)
+    # Sort: deadline ascending (NULLs last), then readiness descending
+    enriched.sort(key=lambda p: (
+        0 if p.get('deadline') else 1,          # projects with deadlines first
+        p.get('deadline') or '9999-12-31',       # earliest deadline first
+        -(p.get('readiness') or 0),              # higher readiness first
+    ))
 
-    # Status counts
+    # Split into active and archived
+    active_projects = [p for p in enriched if p['status'] not in ARCHIVED_STATUSES]
+    archived_projects = [p for p in enriched if p['status'] in ARCHIVED_STATUSES]
+
+    # Read filters from query string
+    filter_status = request.args.get('status', '')
+    filter_urgency = request.args.get('urgency', '')
+
+    # Apply filters to active projects only
+    filtered = active_projects
+    if filter_status:
+        filtered = [p for p in filtered if p['status'] == filter_status]
+    if filter_urgency:
+        filtered = [p for p in filtered if p['urgency'] == filter_urgency]
+
+    # Stats (always based on full active list, not filtered)
+    urgent = [p for p in active_projects if p['urgency'] == 'urgent']
+    expired = [p for p in active_projects if p['urgency'] == 'expired']
+    total_pipeline = sum(p['bid_price'] for p in active_projects if p['bid_price'] > 0)
+
+    # Status counts (all projects)
     status_counts = {}
     for p in enriched:
         s = p['status']
         status_counts[s] = status_counts.get(s, 0) + 1
 
+    # Unique statuses/urgencies for filter dropdowns (active only)
+    active_statuses = sorted(set(p['status'] for p in active_projects))
+    active_urgencies = sorted(set(p['urgency'] for p in active_projects))
+
     return render_template("dashboard.html",
-        projects=enriched, active_count=len(active),
+        projects=filtered, archived_projects=archived_projects,
+        active_count=len(active_projects),
         urgent_count=len(urgent), expired_count=len(expired),
         total_pipeline=total_pipeline, status_counts=status_counts,
+        filter_status=filter_status, filter_urgency=filter_urgency,
+        active_statuses=active_statuses, active_urgencies=active_urgencies,
+        cloud_mode=CLOUD_MODE,
         now=datetime.now())
 
 
@@ -290,6 +332,12 @@ def api_dashboard():
         ep = get_project_summary(p)
         ep['doc_readiness'] = get_doc_readiness(p['id'])
         result.append(ep)
+    # Sort: deadline ascending (NULLs last), then readiness descending
+    result.sort(key=lambda p: (
+        0 if p.get('deadline') else 1,
+        p.get('deadline') or '9999-12-31',
+        -(p.get('readiness') or 0),
+    ))
     return jsonify(result)
 
 
@@ -298,13 +346,17 @@ def api_dashboard():
 @login_required
 def run_scan():
     """Trigger a document scan of project folders."""
+    if CLOUD_MODE:
+        return jsonify({"ok": True, "changes": [], "message": "Folder scan is disabled in cloud mode."})
     from scanner import scan_all_projects
     changes = scan_all_projects(BIDDING_DIR)
     return jsonify({"ok": True, "changes": changes})
 
 
+# ── Always init DB on import (needed for Gunicorn) ──
+init_db()
+
 if __name__ == "__main__":
-    init_db()
     # Check if migration needed
     conn = get_db()
     count = conn.execute("SELECT COUNT(*) as c FROM projects").fetchone()['c']

@@ -22,7 +22,7 @@ REM ── Install dependencies if needed ──
 python -c "import flask" 2>nul
 if %ERRORLEVEL% NEQ 0 (
     echo    Installing required packages...
-    pip install flask flask-login openpyxl -q
+    pip install -r requirements.txt -q
 )
 
 REM ── Get local IP for phone access ──

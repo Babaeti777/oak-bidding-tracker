@@ -72,6 +72,9 @@
         .badge-maybe { background: #FEF5E7; color: #E67E22; }
         .badge-preparing { background: var(--light-blue); color: var(--blue); }
         .badge-submitted { background: #D5F5E3; color: #1E8449; }
+        .badge-win { background: #D4EFDF; color: #1A5276; border: 1px solid #27AE60; }
+        .badge-lost { background: #F9EBEA; color: #922B21; }
+        .badge-followup { background: #F5EEF8; color: #7D3C98; }
 
         /* Progress bar */
         .progress { background: var(--light-gray); border-radius: 20px; height: 8px; overflow: hidden; min-width: 60px; }
@@ -115,6 +118,22 @@
             th, td { padding: 0.5rem; font-size: 0.8rem; }
             .hide-mobile { display: none; }
             .nav { padding: 0.6rem 1rem; }
+            /* Bigger tap targets on mobile */
+            .link-row td { padding: 0.75rem 0.5rem; }
+            select, input[type="text"], input[type="date"], input[type="number"], input[type="password"], textarea {
+                font-size: 16px !important; /* Prevents iOS zoom on focus */
+                padding: 0.55rem 0.65rem;
+                min-height: 44px; /* Apple HIG minimum tap target */
+            }
+            .btn { min-height: 44px; padding: 0.6rem 1rem; }
+            .project-name-cell { min-width: 150px; }
+        }
+        @media (max-width: 480px) {
+            .stats { grid-template-columns: 1fr 1fr; gap: 0.4rem; }
+            .stat-card { padding: 0.65rem 0.75rem; }
+            .stat-value { font-size: 1.25rem; }
+            h1 { font-size: 1.1rem; }
+            h2 { font-size: 1rem; }
         }
 
         /* Utility */
