@@ -107,6 +107,33 @@ def init_db():
         );
     """)
     conn.commit()
+
+    # Auto-seed from seed_data.json if DB is empty (first cloud deploy)
+    count = conn.execute("SELECT COUNT(*) FROM projects").fetchone()[0]
+    if count == 0:
+        import json
+        seed_file = os.path.join(os.path.dirname(__file__), "seed_data.json")
+        if os.path.exists(seed_file):
+            print("DATABASE EMPTY — seeding from seed_data.json ...")
+            with open(seed_file) as f:
+                seed = json.load(f)
+            for table in ["projects", "documents", "milestones", "activity_log"]:
+                rows = seed.get(table, [])
+                if not rows:
+                    continue
+                cols = list(rows[0].keys())
+                placeholders = ", ".join(["?"] * len(cols))
+                col_names = ", ".join(cols)
+                for row in rows:
+                    vals = [row.get(c) for c in cols]
+                    try:
+                        conn.execute(f"INSERT OR IGNORE INTO {table} ({col_names}) VALUES ({placeholders})", vals)
+                    except Exception as e:
+                        print(f"  Seed warning ({table}): {e}")
+            conn.commit()
+            final = conn.execute("SELECT COUNT(*) FROM projects").fetchone()[0]
+            print(f"  Seeded {final} projects successfully.")
+
     conn.close()
 
 
