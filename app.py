@@ -362,6 +362,59 @@ def run_scan():
     return jsonify({"ok": True, "changes": changes})
 
 
+# ── API: Remote scan results (called by scheduled Cowork task) ──
+@app.route("/api/remote-scan", methods=["POST"])
+def remote_scan():
+    """Accept scan results from the local scheduled task.
+    Authenticated via SCAN_API_KEY env var (shared secret).
+    Body: { "api_key": "...", "results": { "project_folder_name": { "doc_name": {"status": "Done", "source": "file.pdf"} } } }
+    """
+    data = request.get_json()
+    if not data:
+        return jsonify({"ok": False, "error": "No JSON body"}), 400
+
+    api_key = os.environ.get("SCAN_API_KEY", "")
+    if not api_key or data.get("api_key") != api_key:
+        return jsonify({"ok": False, "error": "Unauthorized"}), 401
+
+    scan_results = data.get("results", {})
+    conn = get_db()
+    changes = []
+
+    for folder_name, docs in scan_results.items():
+        # Find the project by folder_name
+        proj = conn.execute(
+            "SELECT id, folder_name FROM projects WHERE folder_name = ?",
+            (folder_name,)
+        ).fetchone()
+        if not proj:
+            continue
+
+        for doc_name, info in docs.items():
+            new_status = info.get("status", "Done")
+            source = info.get("source", "")
+
+            doc = conn.execute(
+                "SELECT id, status FROM documents WHERE project_id = ? AND doc_name = ?",
+                (proj['id'], doc_name)
+            ).fetchone()
+
+            if doc and doc['status'] not in ('Done', 'N/A'):
+                if new_status != doc['status']:
+                    conn.execute(
+                        "UPDATE documents SET status = ?, source_file = ? WHERE id = ?",
+                        (new_status, source, doc['id'])
+                    )
+                    changes.append(f"{folder_name}: {doc_name} → {new_status}")
+
+    if changes:
+        conn.execute("INSERT INTO activity_log (action, detail) VALUES (?, ?)",
+                     ("remote_scan", f"Found {len(changes)} document updates"))
+    conn.commit()
+    conn.close()
+    return jsonify({"ok": True, "changes": changes, "count": len(changes)})
+
+
 # ── Always init DB on import (needed for Gunicorn) ──
 init_db()
 
